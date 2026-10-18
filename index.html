@@ -1,0 +1,1569 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0c0f17"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="Touches Filantes"><link rel="apple-touch-icon" href="icon-180.png"></head><body><title>Touches Filantes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a one-screen stage — slim control bar, falling-note lane, keyboard pinned to the bottom. Song library slides over it. */
+:root {
+  --ink: #0c0f17;        /* stage background */
+  --panel: #151a26;      /* bars, sheets */
+  --raise: #1d2433;      /* buttons */
+  --line: #283044;       /* hairlines, lane guides */
+  --fg: #ece7dc;         /* ivory text */
+  --muted: #8f97ab;
+  --rh: #44d49b;         /* right hand (Synthesia convention: green) */
+  --lh: #5ba8ff;         /* left hand (blue) */
+  --auto: #6b6f86;       /* accompaniment the app plays for you */
+  --gold: #ffb547;       /* your touches, hits */
+  --bad: #ff6f6f;
+  --key: #f4f0e7;        /* white keys */
+  --keyshade: #c9c3b6;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--ink); color: var(--fg); font-family: var(--font-ui); font-size: 15px; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+#app { height: 100%; display: flex; flex-direction: column; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.title b { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
+.title span { font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; min-width: 38px; padding: 0 10px; border: 1px solid var(--line); background: var(--raise); border-radius: 10px; font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn.primary { background: var(--gold); color: #1a1205; border-color: var(--gold); }
+.btn.primary svg { fill: currentColor; stroke: none; }
+.btn[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.hide-narrow { }
+@media (max-width: 560px) { .hide-narrow { display: none; } .btn .lbl { display: none; } }
+
+.scrub { display: flex; align-items: center; gap: 10px; padding: 4px 16px 6px; background: var(--panel); font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.scrub input { flex: 1; min-width: 0; accent-color: var(--gold); height: 18px; }
+
+#stage { position: relative; flex: 1; min-height: 0; }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+#hud { position: absolute; top: 10px; left: 16px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.chip { padding: 4px 9px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); white-space: nowrap; }
+.chip i { font-style: normal; color: var(--muted); margin-right: 4px; }
+#chordTag { position: absolute; top: 10px; right: 16px; pointer-events: none; font-size: 0.85rem; font-weight: 700; }
+#waitHint { position: absolute; left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: var(--panel); border: 1px solid var(--gold); color: var(--gold); font-weight: 700; font-size: 0.85rem; pointer-events: none; white-space: nowrap; }
+#rotateHint { position: absolute; top: 46px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
+#rotateHint button { background: none; border: 0; color: var(--fg); font-weight: 600; }
+
+.sheet { position: absolute; top: 8px; right: 16px; width: min(380px, calc(100% - 32px)); max-height: calc(100% - 16px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 16px; box-shadow: 0 18px 50px rgb(0 0 0 / 0.45); z-index: 5; }
+.sheet h3 { margin: 0 0 8px; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 6px; }
+.seg button { padding: 8px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--raise); font-weight: 600; font-size: 0.86rem; }
+.seg button[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, var(--raise)); color: var(--gold); }
+.seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+.levels { display: grid; gap: 6px; }
+.levels button { text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raise); display: grid; gap: 2px; }
+.levels button b { font-family: var(--font-display); font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.levels button span { color: var(--muted); font-size: 0.8rem; }
+.levels button[aria-pressed="true"] { border-color: var(--gold); }
+.levels button[aria-pressed="true"] b { color: var(--gold); }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: currentColor; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.row input[type=range] { flex: 1; accent-color: var(--gold); min-width: 0; }
+.row output { font-variant-numeric: tabular-nums; min-width: 3.2em; text-align: right; font-weight: 600; }
+.check { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+.check input { width: 18px; height: 18px; accent-color: var(--gold); }
+.note { font-size: 0.78rem; color: var(--muted); line-height: 1.45; margin: 0; }
+kbd { font-family: inherit; font-size: 0.74rem; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--fg); }
+
+#result { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(8 10 16 / 0.6); z-index: 6; }
+#result .card { width: min(380px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: grid; gap: 14px; text-align: center; }
+#result .grade { font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; letter-spacing: -0.02em; color: var(--gold); margin: 0; }
+#result .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-variant-numeric: tabular-nums; }
+#result .stats div { background: var(--raise); border-radius: 10px; padding: 10px 4px; display: grid; gap: 2px; }
+#result .stats b { font-size: 1.25rem; }
+#result .stats span { font-size: 0.72rem; color: var(--muted); }
+#result .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+/* Library */
+#lib { position: fixed; inset: 0; z-index: 10; overflow-y: auto; background: var(--ink); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 22px; }
+.headacts { display: flex; gap: 8px; align-items: flex-start; }
+.headacts .seg { grid-template-columns: repeat(2, auto); }
+.headacts .seg button { padding: 8px 10px; }
+.libhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.brand { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 7vw, 3.1rem); letter-spacing: -0.035em; line-height: 0.95; margin: 0; text-wrap: balance; }
+.brand em { font-style: normal; color: var(--gold); }
+.lede { margin: 8px 0 0; color: var(--muted); max-width: 52ch; line-height: 1.5; }
+.drop { display: grid; gap: 10px; padding: 22px; border: 1.5px dashed var(--line); border-radius: 16px; background: var(--panel); cursor: pointer; transition: border-color 0.15s; }
+.drop:hover, .drop.over { border-color: var(--gold); }
+.drop strong { font-family: var(--font-display); font-size: 1.3rem; }
+.drop .fmt { display: flex; gap: 6px; flex-wrap: wrap; }
+.drop .fmt span { font-size: 0.72rem; letter-spacing: 0.06em; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: var(--raise); color: var(--muted); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.urlform { display: grid; gap: 8px; }
+.urlform label { font-size: 0.85rem; color: var(--muted); }
+.urlrow { display: flex; gap: 8px; }
+.urlrow input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+.urlrow .btn { height: 42px; }
+.job { display: grid; gap: 8px; padding: 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--gold); }
+.job .bar2 { height: 8px; border-radius: 99px; background: var(--raise); overflow: hidden; }
+.job .bar2 i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.2s; }
+.job p { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.job.err { border-color: var(--bad); }
+.job.err p { color: var(--bad); }
+.sect h2 { margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.list { display: grid; gap: 8px; }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+.item .meta { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.item .meta b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.item .meta span { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 6px; border-radius: 5px; background: var(--raise); color: var(--muted); }
+.empty { padding: 14px; border-radius: 12px; border: 1px dashed var(--line); color: var(--muted); font-size: 0.88rem; }
+.tips { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.tips div { padding: 12px 14px; border-radius: 12px; background: var(--panel); font-size: 0.85rem; line-height: 1.45; color: var(--muted); min-width: 0; }
+.tips b { color: var(--fg); display: block; margin-bottom: 2px; }
+.fine { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app">
+  <div class="bar">
+    <button class="btn" id="bLib" data-i18n-title="songs"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span class="lbl" data-i18n="songs">Morceaux</span></button>
+    <div class="title"><b id="songTitle">Für Elise</b><span id="songSub">Démo · Débutant</span></div>
+    <button class="btn primary" id="bPlay" data-i18n-title="play_title"><svg viewBox="0 0 24 24" id="playIcon"><path d="M7 5l12 7-12 7z"/></svg></button>
+    <button class="btn" id="bRestart" data-i18n-title="restart"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v5h5"/></svg></button>
+    <button class="btn" id="bSet" aria-pressed="false" data-i18n-title="settings"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="lbl" data-i18n="settings">Réglages</span></button>
+  </div>
+  <div class="scrub"><span id="tCur">0:00</span><input type="range" id="seek" min="0" max="10" step="0.01" value="0" data-i18n-aria="seek"><span id="tDur">0:00</span></div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hud"></div>
+    <div id="chordTag" class="chip" hidden></div>
+    <div id="waitHint" hidden></div>
+    <div id="rotateHint" hidden><span data-i18n="rotate">Tournez le téléphone à l'horizontale pour un clavier plus large.</span><button id="rotOk">OK</button></div>
+
+    <div class="sheet" id="settings" hidden>
+      <div>
+        <h3 data-i18n="h_lang">Langue</h3>
+        <div class="seg langs"><button data-lang="fr">Français</button><button data-lang="de">Deutsch</button></div>
+      </div>
+      <div>
+        <h3 data-i18n="h_level">Niveau</h3>
+        <div class="levels" id="levels">
+          <button data-l="0"><b><span data-i18n="lvl0">Débutant</span> <span class="dots"><i class="on"></i><i></i><i></i></span></b><span data-i18n="lvl0_d">Une main, mélodie seule. Vitesse 60 %. Le morceau attend vos notes.</span></button>
+          <button data-l="1"><b><span data-i18n="lvl1">Intermédiaire</span> <span class="dots"><i class="on"></i><i class="on"></i><i></i></span></b><span data-i18n="lvl1_d">Mélodie et basse, deux mains. Vitesse 80 %. Le morceau attend vos notes.</span></button>
+          <button data-l="2"><b><span data-i18n="lvl2">Expert</span> <span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></span></b><span data-i18n="lvl2_d">Toutes les notes, tempo réel, notes ratées comptées.</span></button>
+        </div>
+      </div>
+      <div>
+        <h3 data-i18n="h_hand">Main jouée</h3>
+        <div class="seg" id="hands"><button data-h="R" data-i18n="hand_R">Droite</button><button data-h="L" data-i18n="hand_L">Gauche</button><button data-h="B" data-i18n="hand_B">Les deux</button></div>
+      </div>
+      <div>
+        <h3 data-i18n="h_mode">Mode</h3>
+        <div class="seg" id="modes"><button data-m="play" data-i18n="mode_play">Jouer</button><button data-m="watch" data-i18n="mode_watch">Regarder</button></div>
+      </div>
+      <div>
+        <h3 data-i18n="h_speed">Vitesse</h3>
+        <div class="row"><input type="range" id="speed" min="30" max="120" step="5" value="60" data-i18n-aria="h_speed"><output id="speedOut">60 %</output></div>
+      </div>
+      <div id="tracksBlock" hidden>
+        <h3 data-i18n="h_track">Piste à jouer</h3>
+        <div class="seg" id="leads"></div>
+        <p class="note" id="leadNote" style="margin-top:8px"></p>
+      </div>
+      <div>
+        <h3 data-i18n="h_sound">Son</h3>
+        <div class="seg" id="sounds"><button data-s="karaoke" data-i18n="snd_karaoke" data-i18n-title="snd_karaoke_t">Karaoké</button><button data-s="orig" data-i18n="snd_orig">Chanson complète</button><button data-s="synth" data-i18n="snd_synth">Piano seul</button></div>
+      </div>
+      <div style="display:grid;gap:10px">
+        <label class="check"><input type="checkbox" id="optWait"> <span data-i18n="opt_wait">Attendre que je joue la bonne note</span></label>
+        <label class="check"><input type="checkbox" id="optNames" checked> <span data-i18n="opt_names">Afficher le nom des notes (Do, Ré, Mi…)</span></label>
+      </div>
+      <p class="note"><span data-i18n-html="kb_help"></span> <span id="kbRange"></span></p>
+    </div>
+
+    <div id="result" hidden>
+      <div class="card">
+        <p class="note" id="resSong"></p>
+        <p class="grade" id="resGrade"></p>
+        <div class="stats">
+          <div><b id="resAcc">0 %</b><span data-i18n="res_acc">précision</span></div>
+          <div><b id="resHits">0</b><span data-i18n="res_hits">notes justes</span></div>
+          <div><b id="resBest">0</b><span data-i18n="res_best">meilleure série</span></div>
+        </div>
+        <div class="acts">
+          <button class="btn" id="resAgain" data-i18n="res_again">Rejouer</button>
+          <button class="btn primary" id="resNext" data-i18n="res_next">Niveau suivant</button>
+          <button class="btn" id="resLib" data-i18n="songs">Morceaux</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="lib" hidden>
+  <div class="wrap">
+    <div class="libhead">
+      <div>
+        <h1 class="brand">Touches <em>Filantes</em></h1>
+        <p class="lede" data-i18n="lede">Donnez-lui une chanson, elle en tire les notes. Elles tombent sur un piano virtuel, à vous de les jouer.</p>
+      </div>
+      <div class="headacts">
+        <div class="seg langs" data-i18n-aria="h_lang"><button data-lang="fr">FR</button><button data-lang="de">DE</button></div>
+        <button class="btn" id="bLibClose" data-i18n-title="close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+
+    <label class="drop" id="drop">
+      <strong data-i18n="drop_title">Importer un morceau</strong>
+      <span class="note" data-i18n="drop_note">Fichier audio ou vidéo : les notes sont détectées sur votre appareil, rien n'est envoyé. Fichier MIDI : chargé directement, avec les deux mains séparées.</span>
+      <span class="fmt"><span>MP3</span><span>M4A</span><span>WAV</span><span>OGG</span><span>MP4</span><span>MOV</span><span>MIDI</span></span>
+      <input type="file" id="file" accept="audio/*,video/*,.mid,.midi,audio/midi">
+    </label>
+
+    <form class="urlform" id="urlForm" hidden>
+      <label for="urlIn" data-i18n="url_label">Ou collez un lien YouTube, Spotify ou Deezer, ou un lien direct vers un MP3 ou MP4</label>
+      <div class="urlrow">
+        <input type="url" id="urlIn" placeholder="https://www.youtube.com/watch?v=…" inputmode="url" autocomplete="off" required>
+        <button class="btn primary" type="submit" id="urlGo" data-i18n="analyse">Analyser</button>
+      </div>
+    </form>
+
+    <div class="job" id="job" hidden>
+      <b id="jobTitle"></b>
+      <div class="bar2"><i id="jobBar"></i></div>
+      <p id="jobMsg"></p>
+    </div>
+
+    <div class="sect">
+      <h2 data-i18n="h_demo">Démo</h2>
+      <div class="list">
+        <div class="item">
+          <div class="meta"><b>Für Elise</b><span data-i18n="demo_meta">Beethoven, 1810 · 8 premières mesures</span></div>
+          <span class="tag" data-i18n="h_demo">Démo</span>
+          <button class="btn" id="bDemo" data-i18n="play">Jouer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sect">
+      <h2 data-i18n="h_yours">Vos morceaux</h2>
+      <div class="list" id="libList"></div>
+    </div>
+
+    <div class="sect" id="queueSect" hidden>
+      <div class="row"><h2 data-i18n="h_queue">File d'attente</h2><button class="btn" id="bQueueClear" data-i18n="q_clear">Vider</button></div>
+      <p class="note" data-i18n="q_note">Les morceaux sont préparés un par un sur le PC (environ une minute chacun), puis ajoutés à vos morceaux. Le PC doit rester allumé.</p>
+      <div class="list" id="queueList"></div>
+    </div>
+
+    <div class="sect" id="pubSect" hidden>
+      <h2 data-i18n="h_site">Site en ligne</h2>
+      <div class="item">
+        <div class="meta"><span data-i18n="site_note">Copie l'application et vos partitions (sans l'audio) dans le dossier « site », prêt à envoyer sur GitHub.</span><span id="pubMsg"></span></div>
+        <button class="btn primary" id="bPublish" data-i18n="publish">Publier sur le site</button>
+      </div>
+    </div>
+
+    <div class="tips">
+      <div id="linkTip"><b data-i18n="tip_link_b">Un lien YouTube ou web ?</b><span data-i18n="tip_link">Cette page ne peut pas télécharger depuis un lien. Enregistrez d'abord le fichier audio ou vidéo sur votre téléphone ou ordinateur, puis importez-le ici.</span></div>
+      <div><b data-i18n="tip_best_b">Meilleurs résultats</b><span data-i18n="tip_best">Un enregistrement de piano seul donne une partition propre. Avec chant, batterie et guitare, la détection ajoute des notes parasites : préférez alors le niveau Débutant.</span></div>
+      <div><b data-i18n="tip_midi_b">Un fichier MIDI existe ?</b><span data-i18n="tip_midi">C'est la source la plus fidèle : la partition est exacte et les deux mains sont séparées.</span></div>
+    </div>
+    <p class="fine" data-i18n="fine">Détection des notes : modèle Basic Pitch de Spotify (licence Apache 2.0), exécuté dans votre navigateur. Vos morceaux sont gardés sur cet appareil ; l'enregistrement original n'est disponible que pendant la séance où vous l'importez.</p>
+  </div>
+</section>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ---------- Languages ---------- */
+const I18N = {
+  fr: {
+    songs: 'Morceaux', play_title: 'Lecture (Espace)', restart: 'Recommencer', settings: 'Réglages', seek: 'Position dans le morceau',
+    rotate: 'Tournez le téléphone à l\'horizontale pour un clavier plus large.',
+    h_lang: 'Langue', h_level: 'Niveau', lvl0: 'Débutant', lvl1: 'Intermédiaire', lvl2: 'Expert',
+    lvl0_d: 'Une main, mélodie seule. Vitesse 60 %. Le morceau attend vos notes.',
+    lvl1_d: 'Mélodie et basse, deux mains. Vitesse 80 %. Le morceau attend vos notes.',
+    lvl2_d: 'Toutes les notes, tempo réel, notes ratées comptées.',
+    h_hand: 'Main jouée', hand_R: 'Droite', hand_L: 'Gauche', hand_B: 'Les deux',
+    h_mode: 'Mode', mode_play: 'Jouer', mode_watch: 'Regarder', h_speed: 'Vitesse', h_track: 'Piste à jouer',
+    h_sound: 'Son', snd_karaoke: 'Karaoké', snd_karaoke_t: 'La chanson sans la piste que vous jouez', snd_orig: 'Chanson complète', snd_synth: 'Piano seul',
+    opt_wait: 'Attendre que je joue la bonne note', opt_names: 'Afficher le nom des notes (Do, Ré, Mi…)',
+    kb_help: 'Jouez en touchant le clavier à l\'écran, avec un clavier MIDI branché, ou avec le clavier de l\'ordinateur : rangée du milieu <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd>… (QWERTY) ou <kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd>… (AZERTY) pour les touches blanches, rangée du dessus pour les noires. <kbd>Z</kbd>/<kbd>X</kbd> (QWERTY) changent d\'octave.',
+    kb_range: 'Actuellement : {a} à {b}.',
+    res_acc: 'précision', res_hits: 'notes justes', res_best: 'meilleure série', res_again: 'Rejouer', res_next: 'Niveau suivant',
+    grade_3: 'Parfait', grade_2: 'Très bien', grade_1: 'Bien joué', grade_0: 'Continuez',
+    lede: 'Donnez-lui une chanson, elle en tire les notes. Elles tombent sur un piano virtuel, à vous de les jouer.',
+    close: 'Fermer', drop_title: 'Importer un morceau',
+    drop_note: 'Fichier audio ou vidéo : les notes sont détectées sur votre appareil, rien n\'est envoyé. Fichier MIDI : chargé directement, avec les deux mains séparées.',
+    url_label: 'Ou collez un lien YouTube, Spotify ou Deezer, ou un lien direct vers un MP3 ou MP4', analyse: 'Analyser',
+    h_demo: 'Démo', demo_meta: 'Beethoven, 1810 · 8 premières mesures', play: 'Jouer', h_yours: 'Vos morceaux',
+    tip_link_b: 'Un lien YouTube ou web ?', tip_link: 'Cette page ne peut pas télécharger depuis un lien. Enregistrez d\'abord le fichier audio ou vidéo sur votre téléphone ou ordinateur, puis importez-le ici.',
+    tip_best_b: 'Meilleurs résultats', tip_best: 'Un enregistrement de piano seul donne une partition propre. Avec chant, batterie et guitare, la détection ajoute des notes parasites : préférez alors le niveau Débutant.',
+    tip_midi_b: 'Un fichier MIDI existe ?', tip_midi: 'C\'est la source la plus fidèle : la partition est exacte et les deux mains sont séparées.',
+    fine: 'Détection des notes : modèle Basic Pitch de Spotify (licence Apache 2.0), exécuté dans votre navigateur. Vos morceaux sont gardés sur cet appareil ; l\'enregistrement original n\'est disponible que pendant la séance où vous l\'importez.',
+    hud_mode: 'Mode', hud_hits: 'Justes', hud_wrong: 'Fausses', hud_missed: 'Ratées', hud_streak: 'Série', wait_play: 'Jouez : ', chord: 'Accord : ',
+    trk_arr: 'Arrangement piano', trk_piano: 'Piano du morceau', trk_vocals: 'Voix',
+    why_arr: 'Composé à partir de la mélodie chantée et des accords : mélodie seule en Débutant, avec la basse des accords en Intermédiaire, avec accords brisés en Expert.',
+    why_piano: 'La partie de piano jouée dans le morceau.', why_vocals: 'La mélodie chantée, telle qu\'elle a été détectée.',
+    auto_piano: 'Choisi automatiquement : un piano est présent dans le morceau. ', auto: 'Choisi automatiquement. ',
+    src_demo: 'Démo', src_audio: 'Audio transcrit', src_midi: 'MIDI',
+    lib_empty_pc: 'Les morceaux que vous importez apparaîtront ici, sur tous vos appareils.',
+    lib_empty_local: 'Les morceaux que vous importez apparaîtront ici et resteront sur cet appareil.',
+    pc_meta: 'Instruments déjà séparés sur le PC · partition pas encore écrite', tag_pc: 'Sur le PC',
+    del: 'Supprimer', del_confirm: 'Supprimer ?', tag_piano: 'Piano', tag_old: 'Ancienne version', tag_audio: 'Audio', update: 'Mettre à jour', notes_unit: 'notes',
+    st_failed: 'L\'analyse a échoué.', st_download: 'Téléchargement de l\'audio…', st_arrange: 'Écoute du rythme, de la mélodie et des accords…',
+    st_separate: 'Séparation des instruments sur le PC…', st_listen: 'Écoute des notes…', st_no_notes: 'Aucune note détectée.',
+    st_writing: 'Écriture de la partition…', st_voice: 'Écoute de la voix…', st_no_notes_song: 'Aucune note détectée dans ce morceau.',
+    st_send: 'Envoi au PC…', st_refused: 'Le PC n\'a pas accepté ce morceau.',
+    st_offline: 'Le PC ne répond plus. Relancez « Lancer Touches Filantes » sur l\'ordinateur, puis réessayez.',
+    untitled: 'Sans titre', st_midi: 'Lecture du fichier MIDI…', st_read: 'Lecture du son…', st_engine: 'Chargement du moteur d\'analyse…',
+    st_listen_dur: 'Écoute des notes… {p} % ({d} de musique)', st_no_notes_file: 'Aucune note détectée. Le fichier est peut-être silencieux ou trop bruité.',
+    link: 'Lien', st_lookup: 'Recherche du morceau…',
+    err_midi_invalid: 'Ce fichier n\'est pas un MIDI valide.', err_midi_empty: 'Aucune note trouvée dans ce fichier MIDI.',
+    err_engine: 'Le moteur d\'analyse n\'a pas pu se charger. Vérifiez la connexion et réessayez.',
+    err_decode: 'Impossible de lire le son de ce fichier. Essayez un MP3, M4A ou MP4 classique.',
+    err_too_long: 'Ce morceau dure plus de 12 minutes. Coupez-le en extraits plus courts.',
+    h_site: 'Site en ligne', site_note: 'Copie l\'application et vos partitions (sans l\'audio) dans le dossier « site », prêt à envoyer sur GitHub.',
+    publish: 'Publier sur le site', pub_busy: 'Préparation…', pub_done: '{n} morceaux prêts. Dans GitHub Desktop : « Commit to main », puis « Push origin ».',
+    pub_fail: 'La préparation du site a échoué.',
+    h_queue: 'File d\'attente', q_clear: 'Vider', q_note: 'Les morceaux sont préparés un par un sur le PC (environ une minute chacun), puis ajoutés à vos morceaux. Le PC doit rester allumé.',
+    q_waiting: 'En attente', q_working: 'En cours', q_done: 'Prêt', q_error: 'Échec',
+    pl_added: '{n} morceaux ajoutés à la file d\'attente.', pl_skipped: '({k} déjà présents)'
+  },
+  de: {
+    songs: 'Stücke', play_title: 'Wiedergabe (Leertaste)', restart: 'Neu starten', settings: 'Einstellungen', seek: 'Position im Stück',
+    rotate: 'Dreh dein Handy ins Querformat, dann wird die Tastatur breiter.',
+    h_lang: 'Sprache', h_level: 'Schwierigkeit', lvl0: 'Anfänger', lvl1: 'Fortgeschritten', lvl2: 'Experte',
+    lvl0_d: 'Eine Hand, nur die Melodie. Tempo 60 %. Das Stück wartet auf deine Töne.',
+    lvl1_d: 'Melodie und Bass, beide Hände. Tempo 80 %. Das Stück wartet auf deine Töne.',
+    lvl2_d: 'Alle Töne, Originaltempo, verpasste Töne zählen.',
+    h_hand: 'Gespielte Hand', hand_R: 'Rechts', hand_L: 'Links', hand_B: 'Beide',
+    h_mode: 'Modus', mode_play: 'Spielen', mode_watch: 'Zuschauen', h_speed: 'Tempo', h_track: 'Gespielte Spur',
+    h_sound: 'Klang', snd_karaoke: 'Karaoke', snd_karaoke_t: 'Das Lied ohne die Spur, die du spielst', snd_orig: 'Ganzes Lied', snd_synth: 'Nur Klavier',
+    opt_wait: 'Warten, bis ich den richtigen Ton spiele', opt_names: 'Notennamen anzeigen (C, D, E …)',
+    kb_help: 'Spiel auf der Bildschirmtastatur, mit einem angeschlossenen MIDI-Keyboard oder mit der Computertastatur: mittlere Reihe <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> … für die weißen Tasten, obere Reihe für die schwarzen. <kbd>Y</kbd>/<kbd>X</kbd> (QWERTZ) wechseln die Oktave.',
+    kb_range: 'Aktuell: {a} bis {b}.',
+    res_acc: 'Genauigkeit', res_hits: 'richtige Töne', res_best: 'beste Serie', res_again: 'Nochmal', res_next: 'Nächste Stufe',
+    grade_3: 'Perfekt', grade_2: 'Sehr gut', grade_1: 'Gut gespielt', grade_0: 'Weiter üben',
+    lede: 'Gib ihr ein Lied, sie holt die Noten heraus. Sie fallen auf ein virtuelles Klavier, und du spielst sie.',
+    close: 'Schließen', drop_title: 'Stück importieren',
+    drop_note: 'Audio- oder Videodatei: Die Töne werden auf deinem Gerät erkannt, nichts wird hochgeladen. MIDI-Datei: wird direkt geladen, mit getrennten Händen.',
+    url_label: 'Oder füge einen YouTube-, Spotify- oder Deezer-Link ein, oder einen direkten Link zu einer MP3 oder MP4', analyse: 'Analysieren',
+    h_demo: 'Demo', demo_meta: 'Beethoven, 1810 · die ersten 8 Takte', play: 'Spielen', h_yours: 'Deine Stücke',
+    tip_link_b: 'Ein YouTube- oder Web-Link?', tip_link: 'Diese Seite kann nichts von einem Link herunterladen. Speichere die Audio- oder Videodatei zuerst auf deinem Handy oder Computer und importiere sie dann hier.',
+    tip_best_b: 'Beste Ergebnisse', tip_best: 'Eine reine Klavieraufnahme ergibt saubere Noten. Mit Gesang, Schlagzeug und Gitarre erkennt die Analyse zusätzliche Störtöne: Nimm dann am besten die Stufe Anfänger.',
+    tip_midi_b: 'Gibt es eine MIDI-Datei?', tip_midi: 'Das ist die genaueste Quelle: Die Noten sind exakt und die beiden Hände sind getrennt.',
+    fine: 'Tonerkennung: Basic-Pitch-Modell von Spotify (Apache-2.0-Lizenz), läuft in deinem Browser. Deine Stücke bleiben auf diesem Gerät; die Originalaufnahme ist nur in der Sitzung verfügbar, in der du sie importierst.',
+    hud_mode: 'Modus', hud_hits: 'Richtig', hud_wrong: 'Falsch', hud_missed: 'Verpasst', hud_streak: 'Serie', wait_play: 'Spiel: ', chord: 'Akkord: ',
+    trk_arr: 'Klavierarrangement', trk_piano: 'Klavier aus dem Stück', trk_vocals: 'Gesang',
+    why_arr: 'Aus der gesungenen Melodie und den Akkorden gesetzt: nur Melodie bei Anfänger, mit dem Akkord-Bass bei Fortgeschritten, mit gebrochenen Akkorden bei Experte.',
+    why_piano: 'Die Klavierstimme, die im Stück gespielt wird.', why_vocals: 'Die gesungene Melodie, so wie sie erkannt wurde.',
+    auto_piano: 'Automatisch gewählt: Im Stück ist ein Klavier zu hören. ', auto: 'Automatisch gewählt. ',
+    src_demo: 'Demo', src_audio: 'Audio transkribiert', src_midi: 'MIDI',
+    lib_empty_pc: 'Die Stücke, die du importierst, erscheinen hier, auf all deinen Geräten.',
+    lib_empty_local: 'Die Stücke, die du importierst, erscheinen hier und bleiben auf diesem Gerät.',
+    pc_meta: 'Instrumente auf dem PC schon getrennt · Noten noch nicht geschrieben', tag_pc: 'Auf dem PC',
+    del: 'Löschen', del_confirm: 'Löschen?', tag_piano: 'Klavier', tag_old: 'Alte Version', tag_audio: 'Audio', update: 'Aktualisieren', notes_unit: 'Töne',
+    st_failed: 'Die Analyse ist fehlgeschlagen.', st_download: 'Audio wird heruntergeladen …', st_arrange: 'Rhythmus, Melodie und Akkorde werden erkannt …',
+    st_separate: 'Instrumente werden auf dem PC getrennt …', st_listen: 'Töne werden erkannt …', st_no_notes: 'Keine Töne erkannt.',
+    st_writing: 'Noten werden geschrieben …', st_voice: 'Gesang wird erkannt …', st_no_notes_song: 'In diesem Stück wurden keine Töne erkannt.',
+    st_send: 'Wird an den PC gesendet …', st_refused: 'Der PC hat dieses Stück nicht angenommen.',
+    st_offline: 'Der PC antwortet nicht mehr. Starte „Lancer Touches Filantes“ auf dem Computer neu und versuch es noch einmal.',
+    untitled: 'Ohne Titel', st_midi: 'MIDI-Datei wird gelesen …', st_read: 'Audio wird gelesen …', st_engine: 'Analyse wird geladen …',
+    st_listen_dur: 'Töne werden erkannt … {p} % ({d} Musik)', st_no_notes_file: 'Keine Töne erkannt. Die Datei ist vielleicht stumm oder zu verrauscht.',
+    link: 'Link', st_lookup: 'Stück wird gesucht …',
+    err_midi_invalid: 'Diese Datei ist keine gültige MIDI-Datei.', err_midi_empty: 'In dieser MIDI-Datei wurden keine Töne gefunden.',
+    err_engine: 'Die Analyse konnte nicht geladen werden. Prüf die Verbindung und versuch es noch einmal.',
+    err_decode: 'Der Ton dieser Datei lässt sich nicht lesen. Versuch es mit einer normalen MP3, M4A oder MP4.',
+    err_too_long: 'Dieses Stück ist länger als 12 Minuten. Teile es in kürzere Ausschnitte.',
+    h_site: 'Website', site_note: 'Kopiert die App und deine Noten (ohne Audio) in den Ordner „site“, bereit zum Hochladen auf GitHub.',
+    publish: 'Auf der Website veröffentlichen', pub_busy: 'Wird vorbereitet …', pub_done: '{n} Stücke bereit. In GitHub Desktop: „Commit to main“, dann „Push origin“.',
+    pub_fail: 'Die Website konnte nicht vorbereitet werden.',
+    h_queue: 'Warteschlange', q_clear: 'Leeren', q_note: 'Die Stücke werden nacheinander auf dem PC vorbereitet (etwa eine Minute pro Stück) und dann zu deinen Stücken hinzugefügt. Der PC muss eingeschaltet bleiben.',
+    q_waiting: 'Wartet', q_working: 'Läuft', q_done: 'Fertig', q_error: 'Fehler',
+    pl_added: '{n} Stücke zur Warteschlange hinzugefügt.', pl_skipped: '({k} schon vorhanden)'
+  }
+};
+// Messages written by the PC server (in French) and their German version
+const SRV_DE = {
+  'Collez un lien qui commence par http:// ou https://': 'Füge einen Link ein, der mit http:// oder https:// beginnt.',
+  'Ce morceau n\'est plus sur le PC.': 'Dieses Stück ist nicht mehr auf dem PC.',
+  'yt-dlp est introuvable sur ce PC.': 'yt-dlp wurde auf diesem PC nicht gefunden.',
+  'Le téléchargement a échoué.': 'Der Download ist fehlgeschlagen.',
+  'La séparation des instruments a échoué.': 'Die Trennung der Instrumente ist fehlgeschlagen.',
+  'Fichier trop gros (300 Mo maximum).': 'Datei zu groß (höchstens 300 MB).',
+  'Envoi interrompu.': 'Upload abgebrochen.',
+  'Ce lien Spotify ou Deezer n\'a pas pu être lu.': 'Dieser Spotify- oder Deezer-Link konnte nicht gelesen werden.',
+  'Aucune version de ce morceau trouvée sur YouTube.': 'Keine Version dieses Stücks auf YouTube gefunden.',
+  'Cette playlist n\'a pas pu être lue. Est-elle publique ?': 'Diese Playlist konnte nicht gelesen werden. Ist sie öffentlich?',
+  'Aucune note détectée dans ce morceau.': 'In diesem Stück wurden keine Töne erkannt.',
+  'Le dossier du site n\'est pas encore relié à GitHub : clonez d\'abord le dépôt avec GitHub Desktop.': 'Der Website-Ordner ist noch nicht mit GitHub verbunden: Klone zuerst das Repository mit GitHub Desktop.'
+};
+let LANG = 'fr';
+try { LANG = localStorage.getItem('tf.lang') || ((navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'fr'); } catch (e) {}
+if (!I18N[LANG]) LANG = 'fr';
+const T = (key, vars) => {
+  let s = (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key;
+  if (vars) for (const k in vars) s = s.replace('{' + k + '}', vars[k]);
+  return s;
+};
+const trSrv = msg => (LANG === 'de' && SRV_DE[msg]) || msg;
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = T(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-html]').forEach(el => el.innerHTML = T(el.dataset.i18nHtml));
+  document.querySelectorAll('[data-i18n-title]').forEach(el => el.title = T(el.dataset.i18nTitle));
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', T(el.dataset.i18nAria)));
+  document.querySelectorAll('.langs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === LANG)));
+}
+applyStaticText();
+const css = getComputedStyle(document.documentElement);
+const C = {};
+['ink','panel','raise','line','fg','muted','rh','lh','auto','gold','bad','key','keyshade'].forEach(k => C[k] = css.getPropertyValue('--' + k).trim());
+
+/* ---------- Music helpers ---------- */
+const NOTE_NAMES = { fr: ['Do','Do♯','Ré','Ré♯','Mi','Fa','Fa♯','Sol','Sol♯','La','La♯','Si'], de: ['C','Cis','D','Dis','E','F','Fis','G','Gis','A','B','H'] };
+const isBlack = p => [1,3,6,8,10].includes(p % 12);
+const noteName = p => NOTE_NAMES[LANG][p % 12];
+const noteShort = p => LANG === 'de' ? noteName(p).replace(/is$/, '♯') : NOTE_NAMES.fr[p % 12].slice(0, 2); // for narrow notes
+const noteNameOct = p => noteName(p) + (Math.floor(p / 12) - (LANG === 'fr' ? 2 : 1)); // middle C = Do3 in French, C4 in German
+const fmtTime = s => { s = Math.max(0, s); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); };
+const LEVEL_SPEED = [0.6, 0.8, 1];
+
+/* ---------- Demo: Für Elise, bars 0–8 (sixteenth steps) ---------- */
+function demoSong() {
+  const s = 0.17, ev = [];
+  const run = (st) => [76,75,76,71,74,72].forEach((p, i) => ev.push([st + i, p, 1]));
+  const arp = (st, bass, mid, top) => { ev.push([st, bass, 1.5], [st + 1, mid, 1.5], [st + 2, top, 2]); };
+  ev.push([0,76,1],[1,75,1]);
+  run(2);
+  ev.push([8,69,2]); arp(8,45,52,57); ev.push([11,60,1],[12,64,1],[13,69,1]);
+  ev.push([14,71,2]); arp(14,40,52,56); ev.push([17,64,1],[18,68,1],[19,71,1]);
+  ev.push([20,72,2]); arp(20,45,52,57); ev.push([23,64,1],[24,76,1],[25,75,1]);
+  run(26);
+  ev.push([32,69,2]); arp(32,45,52,57); ev.push([35,60,1],[36,64,1],[37,69,1]);
+  ev.push([38,71,2]); arp(38,40,52,56); ev.push([41,64,1],[42,72,1],[43,71,1]);
+  ev.push([44,69,5]); arp(44,45,52,57);
+  return {
+    id: 'demo', title: 'Für Elise', source: 'demo',
+    notes: ev.map(([st, p, d]) => ({ t: st * s, d: d * s * 0.95, p, v: 0.7, h: p >= 60 ? 'R' : 'L' }))
+  };
+}
+
+/* ---------- Library (this device only) ---------- */
+const LIB_KEY = 'touchesFilantes.lib.v1';
+function loadLib() { try { return JSON.parse(localStorage.getItem(LIB_KEY) || '[]'); } catch (e) { return []; } }
+function saveLib(lib) { try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); return true; } catch (e) { return false; } }
+const TRK = ['', 'vocals', 'piano', 'guitar', 'bass', 'other'];
+const trackLabel = tr => T('trk_' + tr);
+const PIANO_TRACKS = ['arr', 'piano', 'vocals'];
+const pack = notes => notes.map(n => [Math.round(n.t * 1000), Math.round(n.d * 1000), n.p, Math.round(n.v * 100), n.h === 'L' ? 1 : 0, Math.max(0, TRK.indexOf(n.tr || ''))]);
+const unpack = arr => arr.map(a => ({ t: a[0] / 1000, d: a[1] / 1000, p: a[2], v: a[3] / 100, h: a[4] ? 'L' : 'R', tr: TRK[a[5] || 0] || undefined }));
+function storeSong(song) {
+  const entry = { id: song.id, title: song.title, source: song.source, job: song.job, lead: song.lead, tracks: song.tracks, an: song.an, added: Date.now(), notes: pack(song.notes) };
+  let lib = loadLib().filter(x => x.id !== song.id);
+  lib.unshift(entry);
+  lib = lib.slice(0, 20);
+  while (!saveLib(lib) && lib.length > 1) lib.pop();
+  // With the PC server, the library lives on the PC so every device (computer, phone) sees it
+  if (srv) pushToPc(entry);
+}
+function pushToPc(entry) {
+  return fetch('api/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }).catch(() => {});
+}
+
+/* ---------- Audio: piano-ish synth ---------- */
+let ac = null, master = null;
+function ensureAC() {
+  if (!ac) {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    master = ac.createGain(); master.gain.value = 0.55;
+    const comp = ac.createDynamicsCompressor();
+    master.connect(comp); comp.connect(ac.destination);
+  }
+  if (ac.state === 'suspended') ac.resume();
+  return ac;
+}
+function voice(p, vel = 0.7) {
+  ensureAC();
+  const f = 440 * Math.pow(2, (p - 69) / 12), now = ac.currentTime;
+  const g = ac.createGain(), lp = ac.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.setValueAtTime(Math.min(16000, f * 9), now); lp.frequency.setTargetAtTime(f * 2.5, now, 0.35);
+  const peak = 0.22 * (0.45 + 0.55 * vel), decay = 0.5 + (108 - p) / 38;
+  g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(peak, now + 0.005);
+  g.gain.setTargetAtTime(0, now + 0.005, decay / 3);
+  const o1 = ac.createOscillator(), o2 = ac.createOscillator(), g2 = ac.createGain();
+  o1.type = 'triangle'; o1.frequency.value = f;
+  o2.type = 'sine'; o2.frequency.value = f * 2; g2.gain.value = 0.35;
+  o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(master);
+  o1.start(now); o2.start(now);
+  let ended = false;
+  const release = (at) => {
+    if (ended) return; ended = true;
+    at = Math.max(at, ac.currentTime);
+    g.gain.cancelScheduledValues(at); g.gain.setTargetAtTime(0, at, 0.07);
+    o1.stop(at + 0.5); o2.stop(at + 0.5);
+  };
+  setTimeout(() => release(ac.currentTime), 9000);
+  return { release };
+}
+
+/* ---------- MIDI file parser ---------- */
+function parseMidi(buf) {
+  const d = new DataView(buf); let pos = 0;
+  const u8 = () => d.getUint8(pos++);
+  const u16 = () => { const v = d.getUint16(pos); pos += 2; return v; };
+  const u32 = () => { const v = d.getUint32(pos); pos += 4; return v; };
+  const tag = () => { let s = ''; for (let i = 0; i < 4; i++) s += String.fromCharCode(u8()); return s; };
+  const vlq = () => { let v = 0, b; do { b = u8(); v = (v << 7) | (b & 0x7f); } while (b & 0x80); return v; };
+  if (tag() !== 'MThd') throw new Error(T('err_midi_invalid'));
+  const hlen = u32(); const fmt = u16(), ntr = u16(), div = u16(); pos = 8 + hlen;
+  const tempos = []; const tracks = [];
+  for (let tr = 0; tr < ntr && pos < buf.byteLength - 8; tr++) {
+    const id = tag(), len = u32(), end = pos + len;
+    if (id !== 'MTrk') { pos = end; continue; }
+    let tick = 0, status = 0; const open = new Map(); const notes = [];
+    while (pos < end) {
+      tick += vlq();
+      let b = d.getUint8(pos);
+      if (b & 0x80) { status = b; pos++; }
+      if (status === 0xff) {
+        const type = u8(), l = vlq();
+        if (type === 0x51 && l === 3) tempos.push([tick, (d.getUint8(pos) << 16) | (d.getUint8(pos + 1) << 8) | d.getUint8(pos + 2)]);
+        pos += l;
+      } else if (status === 0xf0 || status === 0xf7) { pos += vlq(); }
+      else {
+        const hi = status & 0xf0, ch = status & 0x0f;
+        const a = u8(), bb = (hi === 0xc0 || hi === 0xd0) ? 0 : u8();
+        if (hi === 0x90 && bb > 0) {
+          const k = ch * 128 + a; if (!open.has(k)) open.set(k, []);
+          open.get(k).push({ tick, p: a, v: bb / 127, ch });
+        } else if (hi === 0x80 || (hi === 0x90 && bb === 0)) {
+          const q = open.get(ch * 128 + a);
+          if (q && q.length) { const n = q.shift(); n.end = tick; notes.push(n); }
+        }
+      }
+    }
+    pos = end;
+    tracks.push(notes.filter(n => n.ch !== 9));
+  }
+  tempos.sort((a, b) => a[0] - b[0]);
+  let toSec;
+  if (div & 0x8000) {
+    const fps = 256 - (div >> 8), tpf = div & 0xff; toSec = tk => tk / (fps * tpf);
+  } else {
+    const segs = []; let lastTick = 0, lastSec = 0, us = 500000;
+    for (const [tk, t] of tempos) { lastSec += (tk - lastTick) * us / 1e6 / div; lastTick = tk; us = t; segs.push([tk, lastSec, us]); }
+    toSec = tk => { let s = [0, 0, 500000]; for (const g of segs) { if (g[0] <= tk) s = g; else break; } return s[1] + (tk - s[0]) * s[2] / 1e6 / div; };
+  }
+  const noteTracks = tracks.filter(t => t.length);
+  const out = [];
+  noteTracks.forEach((t, i) => t.forEach(n => {
+    const h = noteTracks.length >= 2 && i < 2 ? (i === 0 ? 'R' : 'L') : (n.p >= 60 ? 'R' : 'L');
+    const t0 = toSec(n.tick);
+    out.push({ t: t0, d: Math.max(0.05, toSec(n.end) - t0), p: n.p, v: n.v, h });
+  }));
+  if (!out.length) throw new Error(T('err_midi_empty'));
+  out.sort((a, b) => a.t - b.t);
+  const first = out[0].t; out.forEach(n => n.t -= first);
+  return out;
+}
+
+/* ---------- Audio → notes (Basic Pitch, Spotify, Apache-2.0; ported) ---------- */
+const BP = { SR: 22050, HOP: 256, FPS: 86, NS: 22050 * 2 - 256, OVL: 30 * 256, HALF: 15, F: 88 };
+BP.HOPSZ = BP.NS - BP.OVL;
+BP.WOFF = (BP.HOP / BP.SR) * (172 - BP.NS / BP.HOP) + 0.0018;
+let tfLoading = null, bpModel = null;
+function loadTf() {
+  if (window.tf) return Promise.resolve();
+  if (!tfLoading) tfLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.22.0/tf.min.js';
+    s.onload = res; s.onerror = () => { tfLoading = null; rej(new Error(T('err_engine'))); };
+    document.head.appendChild(s);
+  });
+  return tfLoading;
+}
+async function runBasicPitch(mono, onProg) {
+  await loadTf();
+  await tf.ready();
+  if (!bpModel) bpModel = await tf.loadGraphModel('model/model.json');
+  const pad = BP.OVL / 2, total = pad + mono.length;
+  const sig = new Float32Array(total); sig.set(mono, pad);
+  const nOut = Math.floor(mono.length * BP.FPS / BP.SR);
+  const nWin = Math.ceil(total / BP.HOPSZ);
+  const frames = new Float32Array(nOut * BP.F), onsets = new Float32Array(nOut * BP.F);
+  let filled = 0;
+  for (let i = 0; i < nWin && filled < nOut; i++) {
+    const win = new Float32Array(BP.NS);
+    win.set(sig.subarray(i * BP.HOPSZ, Math.min(total, i * BP.HOPSZ + BP.NS)));
+    const outs = tf.tidy(() => {
+      const r = bpModel.execute(tf.tensor3d(win, [1, BP.NS, 1]), ['Identity_1', 'Identity_2']);
+      return r.map(t => { const s = t.shape, n = s[1] - 2 * BP.HALF; return t.slice([0, BP.HALF, 0], [1, n, s[2]]).reshape([n, s[2]]); });
+    });
+    const [fd, od] = await Promise.all(outs.map(t => t.data()));
+    outs.forEach(t => t.dispose());
+    const rows = Math.min(fd.length / BP.F, nOut - filled);
+    frames.set(fd.subarray(0, rows * BP.F), filled * BP.F);
+    onsets.set(od.subarray(0, rows * BP.F), filled * BP.F);
+    filled += rows;
+    onProg((i + 1) / nWin);
+    await new Promise(r => setTimeout(r, 0));
+  }
+  return { frames, onsets, n: filled };
+}
+function notesFromModel({ frames, onsets, n }) {
+  const F = BP.F, onTh = 0.5, frTh = 0.3, minLen = 11, tol = 11;
+  const diff = new Float32Array(n * F);
+  let oMax = 0, dMax = 0;
+  for (let i = 0; i < n * F; i++) if (onsets[i] > oMax) oMax = onsets[i];
+  for (let r = 2; r < n; r++) for (let c = 0; c < F; c++) {
+    const v = frames[r * F + c];
+    const x = Math.max(0, Math.min(v - frames[(r - 1) * F + c], v - frames[(r - 2) * F + c]));
+    diff[r * F + c] = x; if (x > dMax) dMax = x;
+  }
+  const inf = new Float32Array(n * F);
+  for (let i = 0; i < n * F; i++) inf[i] = Math.max(onsets[i], dMax > 0 ? diff[i] * oMax / dMax : 0);
+  const peaks = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < F; c++) {
+    const v = inf[r * F + c];
+    if (v <= onTh) continue;
+    if (r > 0 && !(v > inf[(r - 1) * F + c])) continue;
+    if (r < n - 1 && !(v > inf[(r + 1) * F + c])) continue;
+    peaks.push(r * F + c);
+  }
+  peaks.reverse();
+  const energy = frames.slice(), notes = [];
+  const f2t = f => f * BP.HOP / BP.SR - BP.WOFF * Math.floor(f / 172);
+  for (const idx of peaks) {
+    const s = Math.floor(idx / F), c = idx % F;
+    if (s >= n - 1) continue;
+    let i = s + 1, k = 0;
+    while (i < n - 1 && k < tol) { if (energy[i * F + c] < frTh) k++; else k = 0; i++; }
+    i -= k;
+    if (i - s <= minLen) continue;
+    let amp = 0;
+    for (let j = s; j < i; j++) {
+      amp += frames[j * F + c];
+      energy[j * F + c] = 0;
+      if (c < F - 1) energy[j * F + c + 1] = 0;
+      if (c > 0) energy[j * F + c - 1] = 0;
+    }
+    amp /= (i - s);
+    const p = c + 21, t = f2t(s);
+    notes.push({ t, d: f2t(i) - t, p, v: Math.min(1, amp * 1.4), h: p >= 60 ? 'R' : 'L' });
+  }
+  notes.sort((a, b) => a.t - b.t);
+  return notes;
+}
+async function decodeToMono(file) {
+  ensureAC();
+  const buf = await file.arrayBuffer();
+  let ab;
+  try {
+    ab = await new Promise((res, rej) => { const p = ac.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+  } catch (e) { throw new Error(T('err_decode')); }
+  if (ab.duration > 720) throw new Error(T('err_too_long'));
+  const off = new OfflineAudioContext(1, Math.ceil(ab.duration * BP.SR), BP.SR);
+  const src = off.createBufferSource(); src.buffer = ab; src.connect(off.destination); src.start();
+  const r = await off.startRendering();
+  return { mono: r.getChannelData(0), duration: ab.duration };
+}
+
+/* ---------- Chart: which notes you play at each level ---------- */
+const settings = { level: 0, hands: 'R', mode: 'play', speed: 0.6, sound: 'synth', wait: true, names: true, lead: null, others: false };
+let song = null, chart = null;
+// Separated songs are piano-only. Three ways to play them:
+//   arr    — a piano arrangement composed here from the sung melody, the beat grid and the chords (arrange.py);
+//   piano  — the song's own piano part, when it has one;
+//   vocals — the sung melody, as detected.
+const leadOf = () => {
+  const l = settings.lead || song.lead;
+  return song.tracks.includes(l) ? l : song.tracks[0];
+};
+function stemNotes() {
+  const lead = leadOf();
+  if (lead === 'arr') return arrangeNotes(song.an, settings.level);
+  return song.notes.filter(n => n.tr === lead).map(n => ({ ...n, h: lead === 'piano' ? (n.p >= 60 ? 'R' : 'L') : 'R' }));
+}
+// Karaoke: the recording without the part you play (the voice, when you play its melody)
+function playedTracks() {
+  if (!song || song.source !== 'stems') return [];
+  return [leadOf() === 'piano' ? 'piano' : 'vocals'];
+}
+
+/* ---------- Piano arrangement from melody + beats + chords ---------- */
+const CHORD_ROOT = { fr: ['Do', 'Do♯', 'Ré', 'Mi♭', 'Mi', 'Fa', 'Fa♯', 'Sol', 'La♭', 'La', 'Si♭', 'Si'], de: ['C', 'Cis', 'D', 'Es', 'E', 'F', 'Fis', 'G', 'As', 'A', 'B', 'H'] };
+const chordLabel = c => CHORD_ROOT[LANG][c.r] + (c.q === 'min' ? 'm' : '');
+function chordAt(an, time) {
+  const cs = an.chords; let lo = 0, hi = cs.length - 1, found = null;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (cs[m].t0 <= time) { found = cs[m]; lo = m + 1; } else hi = m - 1; }
+  return found && time < found.t1 ? found : null;
+}
+// Sixteenth-note grid built from the detected beats
+function sixteenthGrid(beats) {
+  const diffs = beats.slice(1).map((b, i) => b - beats[i]).sort((a, b) => a - b);
+  const med = diffs.length ? diffs[diffs.length >> 1] : 0.5;
+  const B = beats.slice();
+  while (B[0] > 0.01) B.unshift(B[0] - med);
+  B.push(B[B.length - 1] + med, B[B.length - 1] + 2 * med);
+  const g = [];
+  for (let i = 0; i < B.length - 1; i++) for (let k = 0; k < 4; k++) g.push(B[i] + (B[i + 1] - B[i]) * k / 4);
+  g.push(B[B.length - 1]);
+  const snap = time => {
+    let lo = 0, hi = g.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (g[m] <= time) lo = m; else hi = m; }
+    return time - g[lo] < g[hi] - time ? lo : hi;
+  };
+  return { g, snap };
+}
+const placeIn = (pc, lo) => lo + ((pc - lo) % 12 + 12) % 12; // pitch of class pc in [lo, lo+11]
+function arrangeNotes(an, level) {
+  if (!an) return [];
+  const { g, snap } = sixteenthGrid(an.beats);
+  const res = level === 0 ? 2 : 1; // beginner: eighth-note rhythm
+  const out = [];
+  const add = (s, e, p, v, h) => { if (e > s && g[e] != null) out.push({ t: g[s], d: Math.max(0.08, g[e] - g[s] - 0.02), p, v, h, tr: 'arr' }); };
+  // Melody (right hand): moved by octaves to sit around the 5th octave, on the rhythm grid, one note at a time
+  const mel = an.melody.slice().sort((a, b) => a.t - b.t);
+  const ps = mel.map(n => n.p).sort((a, b) => a - b);
+  const shift = ps.length ? 12 * Math.round((71 - ps[ps.length >> 1]) / 12) : 0;
+  const slots = [];
+  for (const n of mel) {
+    const s = Math.round(snap(n.t) / res) * res;
+    const e = Math.max(s + res, Math.round(snap(n.t + n.d) / res) * res);
+    const last = slots[slots.length - 1];
+    if (last && last.s === s) { if (n.v > last.v) Object.assign(last, { e, p: n.p + shift, v: n.v }); continue; }
+    slots.push({ s, e, p: n.p + shift, v: n.v });
+  }
+  slots.forEach((n, i) => {
+    const next = slots[i + 1];
+    const e = next ? Math.min(n.e, next.s) : n.e;
+    let p = n.p; while (p > 88) p -= 12; while (p < 60) p += 12;
+    n.e = e; n.p = p;
+    add(n.s, e, p, 0.6 + 0.35 * n.v, 'R');
+  });
+  if (level === 0) return out;
+  // Left hand, bar by bar
+  const downs = an.downbeats.length >= 2 ? an.downbeats : an.beats.filter((_, i) => i % 4 === 0);
+  const beatIdx = an.beats.map(b => snap(b));
+  for (let i = 0; i < downs.length; i++) {
+    const b0 = snap(downs[i]), b1 = i + 1 < downs.length ? snap(downs[i + 1]) : b0 + 16;
+    if (level === 1) {
+      // Intermediate: the chord's root, held, once per bar (and again when the chord changes inside the bar)
+      for (const bi of beatIdx.filter(x => x >= b0 && x < b1)) {
+        const c = chordAt(an, g[bi] + 0.02), prev = bi > b0 ? chordAt(an, g[bi - 4] + 0.02) : null;
+        if (!c || (bi > b0 && prev && prev.r === c.r && prev.q === c.q)) continue;
+        let end = bi + 4; while (end < b1 && (() => { const n = chordAt(an, g[end] + 0.02); return n && n.r === c.r && n.q === c.q; })()) end += 4;
+        add(bi, Math.min(end, b1), placeIn(c.r, 41), 0.55, 'L');
+      }
+    } else {
+      // Expert: broken chord in eighth notes (root, fifth, octave, tenth)
+      let k = 0;
+      for (let s = b0; s < b1; s += 2, k++) {
+        const c = chordAt(an, g[s] + 0.02); if (!c) continue;
+        const R = placeIn(c.r, 36), third = c.q === 'min' ? 3 : 4;
+        const tones = [R, R + 7, R + 12, R + 12 + third];
+        add(s, Math.min(s + 4, b1), tones[k % 4], k % 4 === 0 ? 0.6 : 0.45, 'L');
+      }
+    }
+  }
+  // Expert: a chord tone under long melody notes that start a bar
+  if (level === 2) {
+    const downSet = new Set(downs.map(d => snap(d)));
+    for (const n of slots) {
+      if (!downSet.has(n.s) || n.e - n.s < 4) continue;
+      const c = chordAt(an, g[n.s] + 0.02); if (!c) continue;
+      const pcs = [c.r, (c.r + (c.q === 'min' ? 3 : 4)) % 12, (c.r + 7) % 12];
+      for (let d = 3; d <= 9; d++) if (pcs.includes(((n.p - d) % 12 + 12) % 12)) { add(n.s, n.e, n.p - d, 0.45, 'R'); break; }
+    }
+  }
+  return out;
+}
+
+function buildChart() {
+  const base = song.source === 'stems' ? stemNotes() : song.notes;
+  const src = base.slice().sort((a, b) => a.t - b.t || b.p - a.p);
+  const L = settings.level, wantR = settings.hands !== 'L', wantL = settings.hands !== 'R';
+  const isAudio = song.source === 'audio' || song.source === 'stems';
+  const arranged = song.source === 'stems' && leadOf() === 'arr'; // already written for the level
+  const notes = src.map((n, i) => ({ ...n, id: i, play: false, hit: false, miss: false, played: false }));
+  if (L === 2 || arranged) {
+    notes.forEach(n => n.play = !n.acc && (n.h === 'R' ? wantR : wantL));
+  } else {
+    const gap = L === 0 ? 0.14 : 0.09, last = { R: -9, L: -9 };
+    let i = 0;
+    while (i < notes.length) {
+      let j = i; const grp = [];
+      while (j < notes.length && notes[j].t - notes[i].t < 0.06) grp.push(notes[j++]);
+      const ok = grp.filter(n => !n.acc && (!isAudio || (n.d >= 0.09 && n.v >= 0.35)));
+      for (const h of ['R', 'L']) {
+        if ((h === 'R' && !wantR) || (h === 'L' && !wantL)) continue;
+        const hs = ok.filter(n => n.h === h);
+        if (!hs.length) continue;
+        const pick = h === 'R' ? hs.reduce((a, b) => b.p > a.p ? b : a) : hs.reduce((a, b) => b.p < a.p ? b : a);
+        if (pick.t - last[h] >= gap) { pick.play = true; last[h] = pick.t; }
+      }
+      i = j;
+    }
+  }
+  let lo = 108, hi = 21, dur = 0;
+  notes.forEach(n => { lo = Math.min(lo, n.p); hi = Math.max(hi, n.p); dur = Math.max(dur, n.t + n.d); });
+  lo = Math.max(21, lo - (lo % 12)); hi = Math.min(108, hi + (11 - (hi % 12)));
+  if (hi - lo < 23) hi = Math.min(108, lo + 23);
+  const playList = notes.filter(n => n.play);
+  const mid = playList.length ? playList.reduce((s, n) => s + n.p, 0) / playList.length : 60;
+  chart = { notes, playList, lo, hi, duration: dur, kbBase: Math.max(lo, Math.min(hi - 16, Math.round((mid - 6) / 12) * 12)) };
+  layoutKeys();
+  $('kbRange').textContent = T('kb_range', { a: noteNameOct(chart.kbBase), b: noteNameOct(chart.kbBase + 16) });
+}
+
+/* ---------- Playback state ---------- */
+let t = -1.2, playing = false, pIdx = 0, audioEl = null, audioUrl = null;
+let score = { hits: 0, miss: 0, wrong: 0, streak: 0, best: 0 };
+const held = new Map();     // pitch -> synth voice, for notes you press
+const lit = new Map();      // pitch -> {until, color}, for notes the app plays
+const flash = new Map();    // pitch -> {until, color}, keys you just hit
+const sparks = [];
+let waitingChord = null;
+const useAudio = () => settings.sound !== 'synth' && audioEl;
+
+function resetProgress(at) {
+  t = at; pIdx = 0;
+  chart.notes.forEach(n => { const past = n.t < at - 0.01; n.played = past; n.hit = false; n.miss = false; });
+  while (pIdx < chart.playList.length && chart.playList[pIdx].t < at - 0.01) pIdx++;
+  score = { hits: 0, miss: 0, wrong: 0, streak: 0, best: 0 };
+  lit.clear(); waitingChord = null;
+  if (audioEl) { try { audioEl.currentTime = Math.max(0, at); } catch (e) {} }
+  updateHud();
+}
+function setPlaying(on) {
+  playing = on;
+  $('playIcon').innerHTML = on ? '<path d="M7 5h3v14H7zM14 5h3v14h-3z"/>' : '<path d="M7 5l12 7-12 7z"/>';
+  if (on) {
+    ensureAC();
+    $('result').hidden = true;
+    if (useAudio()) {
+      audioEl.playbackRate = settings.speed;
+      // Start inside the tap so phones allow later programmatic play/pause.
+      const p = audioEl.play();
+      if (p && p.then) p.then(() => { if (t < 0 || waitingChord) audioEl.pause(); }).catch(() => {});
+    }
+    try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
+  } else {
+    if (audioEl) audioEl.pause();
+  }
+}
+function restart() { resetProgress(-1.5); setPlaying(true); }
+
+function nextUnresolved() {
+  const L = chart.playList;
+  while (pIdx < L.length && (L[pIdx].hit || L[pIdx].miss)) pIdx++;
+  return L[pIdx];
+}
+function pendingChord() {
+  const first = nextUnresolved();
+  if (!first || first.t > t) return null;
+  const out = [];
+  for (let j = pIdx; j < chart.playList.length && chart.playList[j].t <= first.t + 0.06; j++) if (!chart.playList[j].hit) out.push(chart.playList[j]);
+  return out.length ? out : null;
+}
+const handColor = h => h === 'L' ? C.lh : C.rh;
+
+function tick(dt) {
+  if (!playing || !chart) return;
+  const waitOn = settings.mode === 'play' && settings.wait;
+  waitingChord = waitOn ? pendingChord() : null;
+  if (waitingChord) {
+    t = Math.min(t, waitingChord[0].t);
+    if (audioEl && !audioEl.paused) audioEl.pause();
+  } else if (useAudio() && t >= 0 && !audioEl.ended) {
+    if (audioEl.paused) { audioEl.playbackRate = settings.speed; try { audioEl.currentTime = t; } catch (e) {} audioEl.play().catch(() => {}); t += dt * settings.speed; }
+    else t = Math.max(t, audioEl.currentTime);
+  } else {
+    const before = t; t += dt * settings.speed;
+    if (useAudio() && before < 0 && t >= 0) { audioEl.playbackRate = settings.speed; try { audioEl.currentTime = 0; } catch (e) {} audioEl.play().catch(() => {}); }
+  }
+  // Notes the app plays for you (accompaniment, or everything in Watch mode)
+  for (const n of chart.notes) {
+    if (n.played || n.t > t) continue;
+    n.played = true;
+    const auto = settings.mode === 'watch' || !n.play;
+    if (!auto) continue;
+    lit.set(n.p, { until: n.t + Math.max(n.d, 0.08), color: n.play ? handColor(n.h) : C.auto });
+    if (!useAudio()) voice(n.p, n.v).release(ac.currentTime + Math.max(0.1, n.d / settings.speed));
+  }
+  // Timed scoring (no waiting): notes that slid past the line count as missed
+  if (settings.mode === 'play' && !waitOn) {
+    const L = chart.playList;
+    for (let j = pIdx; j < L.length && L[j].t < t - 0.2; j++) if (!L[j].hit && !L[j].miss) { L[j].miss = true; score.miss++; score.streak = 0; updateHud(); }
+  }
+  if (t > chart.duration + 0.8) finish();
+}
+function finish() {
+  setPlaying(false);
+  if (settings.mode !== 'play') { resetProgress(-1.2); return; }
+  const total = chart.playList.length, acc = total ? Math.round(100 * score.hits / Math.max(1, total + score.wrong * 0.5)) : 0;
+  $('resSong').textContent = song.title + ' · ' + T('lvl' + settings.level);
+  $('resGrade').textContent = T('grade_' + (acc >= 95 ? 3 : acc >= 80 ? 2 : acc >= 60 ? 1 : 0));
+  $('resAcc').textContent = acc + ' %';
+  $('resHits').textContent = score.hits + '/' + total;
+  $('resBest').textContent = score.best;
+  $('resNext').hidden = settings.level >= 2;
+  $('result').hidden = false;
+}
+
+/* ---------- Input ---------- */
+function noteOn(p, vel = 0.75) {
+  if (held.has(p)) return;
+  held.set(p, voice(p, vel));
+  if (!chart || settings.mode !== 'play' || !playing) return;
+  let target = null;
+  if (settings.wait) {
+    const first = nextUnresolved();
+    if (first) {
+      const limit = Math.max(t, first.t) + 0.35;
+      for (let j = pIdx; j < chart.playList.length && chart.playList[j].t <= limit; j++) {
+        const n = chart.playList[j]; if (!n.hit && n.p === p) { target = n; break; }
+      }
+    }
+  } else {
+    let best = 0.2;
+    for (let j = Math.max(0, pIdx - 8); j < chart.playList.length && chart.playList[j].t < t + 0.25; j++) {
+      const n = chart.playList[j], e = Math.abs(n.t - t);
+      if (!n.hit && !n.miss && n.p === p && e <= best) { best = e; target = n; }
+    }
+  }
+  if (target) {
+    target.hit = true; score.hits++; score.streak++; score.best = Math.max(score.best, score.streak);
+    flash.set(p, { until: performance.now() + 220, color: handColor(target.h) });
+    spawnSparks(p, handColor(target.h));
+  } else { score.wrong++; score.streak = 0; flash.set(p, { until: performance.now() + 200, color: C.bad }); }
+  updateHud();
+}
+function noteOff(p) { const v = held.get(p); if (v) { v.release(ac.currentTime); held.delete(p); } }
+
+// Computer keyboard (physical positions, so QWERTY and AZERTY both work)
+const KEYMAP = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12, KeyO: 13, KeyL: 14, KeyP: 15, Semicolon: 16 };
+const downKeys = new Map();
+addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input, select, textarea')) return;
+  if (e.code === 'Space' && !(e.target.closest && e.target.closest('button'))) { e.preventDefault(); togglePlay(); return; }
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !chart) return;
+  if (e.code === 'KeyZ' || e.code === 'KeyX') {
+    chart.kbBase = Math.max(21, Math.min(92, chart.kbBase + (e.code === 'KeyZ' ? -12 : 12)));
+    $('kbRange').textContent = T('kb_range', { a: noteNameOct(chart.kbBase), b: noteNameOct(chart.kbBase + 16) });
+    return;
+  }
+  if (e.code in KEYMAP) { const p = chart.kbBase + KEYMAP[e.code]; downKeys.set(e.code, p); noteOn(p); }
+});
+addEventListener('keyup', e => { const p = downKeys.get(e.code); if (p != null) { downKeys.delete(e.code); noteOff(p); } });
+
+// MIDI keyboards, where the browser allows it
+try {
+  if (navigator.requestMIDIAccess) navigator.requestMIDIAccess().then(acc => {
+    const hook = () => acc.inputs.forEach(inp => inp.onmidimessage = m => {
+      const [st, a, b] = m.data, hi = st & 0xf0;
+      if (hi === 0x90 && b > 0) noteOn(a, b / 127); else if (hi === 0x80 || (hi === 0x90 && b === 0)) noteOff(a);
+    });
+    hook(); acc.onstatechange = hook;
+  }).catch(() => {});
+} catch (e) {}
+
+/* ---------- Canvas ---------- */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, kbTop = 0, kbH = 0;
+let geo = {}; // pitch -> {x, w, black}
+function resize() {
+  const r = cv.getBoundingClientRect();
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  kbH = Math.max(78, Math.min(170, H * 0.24, W * 0.22));
+  kbTop = H - kbH;
+  layoutKeys();
+  $('waitHint').style.bottom = (kbH + 14) + 'px';
+  const portrait = H > W && W < 560;
+  let dismissed = false; try { dismissed = sessionStorage.getItem('tf.rot') === '1'; } catch (e) {}
+  $('rotateHint').hidden = !portrait || dismissed;
+}
+function layoutKeys() {
+  if (!chart || !W) return;
+  geo = {};
+  const whites = [];
+  for (let p = chart.lo; p <= chart.hi; p++) if (!isBlack(p)) whites.push(p);
+  const ww = W / whites.length, bw = ww * 0.62;
+  let wi = 0;
+  for (let p = chart.lo; p <= chart.hi; p++) {
+    if (!isBlack(p)) { geo[p] = { x: wi * ww, w: ww, black: false }; wi++; }
+    else geo[p] = { x: wi * ww - bw / 2, w: bw, black: true };
+  }
+  chart.ww = ww;
+}
+function rr(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function spawnSparks(p, color) {
+  const g = geo[p]; if (!g) return;
+  for (let i = 0; i < 10; i++) sparks.push({ x: g.x + g.w / 2, y: kbTop, vx: (Math.random() - 0.5) * 160, vy: -60 - Math.random() * 160, life: 1, color });
+}
+function keyFill(p, nowMs) {
+  const f = flash.get(p); if (f && f.until > nowMs) return f.color;
+  if (held.has(p)) return C.gold;
+  const l = lit.get(p); if (l && l.until > t) return l.color;
+  return null;
+}
+function draw(nowMs, dt) {
+  if (!chart) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = C.ink; ctx.fillRect(0, 0, W, H);
+  const pps = kbTop / 2.6; // pixels per song-second
+  // Lane guides at each Do (C) and Fa (F)
+  for (let p = chart.lo; p <= chart.hi; p++) {
+    if (p % 12 !== 0 && p % 12 !== 5) continue;
+    const g = geo[p]; ctx.fillStyle = C.line; ctx.globalAlpha = p % 12 === 0 ? 0.9 : 0.4;
+    ctx.fillRect(Math.round(g.x), 0, 1, kbTop);
+  }
+  ctx.globalAlpha = 1;
+  // Pending chord glow (wait mode)
+  if (waitingChord) {
+    const pulse = 0.25 + 0.2 * Math.sin(nowMs / 160);
+    for (const n of waitingChord) { const g = geo[n.p]; ctx.fillStyle = handColor(n.h); ctx.globalAlpha = pulse; ctx.fillRect(g.x, 0, g.w, kbTop); }
+    ctx.globalAlpha = 1;
+  }
+  // Falling notes
+  const showNames = settings.names;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  for (const n of chart.notes) {
+    if (n.t > t + 2.8) break;
+    if (n.t + n.d < t - 0.3) continue;
+    const g = geo[n.p]; if (!g) continue;
+    const yb = kbTop - (n.t - t) * pps, h = Math.max(7, n.d * pps), y = yb - h;
+    const pad = g.black ? 0.5 : Math.max(1, g.w * 0.08);
+    const x = g.x + pad, w = g.w - pad * 2;
+    let col = n.play && settings.mode === 'play' ? handColor(n.h) : (settings.mode === 'watch' ? handColor(n.h) : C.auto);
+    ctx.globalAlpha = n.miss ? 0.28 : (!n.play && settings.mode === 'play') ? 0.55 : 1;
+    ctx.fillStyle = col; rr(x, y, w, h, Math.min(6, w / 3)); ctx.fill();
+    if (n.hit) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#ffffff'; rr(x, y, w, h, Math.min(6, w / 3)); ctx.fill(); }
+    if (g.black && !n.miss) { ctx.globalAlpha = 0.35; ctx.strokeStyle = C.ink; ctx.lineWidth = 1; rr(x, y, w, h, Math.min(6, w / 3)); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    if (showNames && (n.play || settings.mode === 'watch') && w >= 13 && h >= 15) {
+      const fs = Math.min(12, Math.max(8, w * 0.42));
+      ctx.font = '700 ' + fs + 'px Figtree, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(8,10,16,0.82)';
+      const label = w >= 22 ? noteName(n.p) : noteShort(n.p);
+      ctx.fillText(label, x + w / 2, yb - 3);
+    }
+  }
+  // Hit line
+  ctx.fillStyle = C.gold; ctx.globalAlpha = 0.85; ctx.fillRect(0, kbTop - 2, W, 2); ctx.globalAlpha = 1;
+  // Keyboard: whites
+  for (let p = chart.lo; p <= chart.hi; p++) {
+    const g = geo[p]; if (g.black) continue;
+    const fill = keyFill(p, nowMs);
+    ctx.fillStyle = fill || C.key; ctx.fillRect(g.x + 0.5, kbTop, g.w - 1, kbH - 2);
+    ctx.fillStyle = C.keyshade; ctx.fillRect(g.x + 0.5, kbTop + kbH - 6, g.w - 1, 4);
+    if (p % 12 === 0 || (showNames && g.w >= 22)) {
+      ctx.font = '600 ' + Math.min(11, Math.max(8, g.w * 0.36)) + 'px Figtree, system-ui, sans-serif';
+      ctx.fillStyle = fill ? 'rgba(8,10,16,0.85)' : (p % 12 === 0 ? '#5c5a66' : '#9a96a0');
+      ctx.fillText(p % 12 === 0 && g.w >= 20 ? noteNameOct(p) : noteShort(p), g.x + g.w / 2, kbTop + kbH - 9);
+    }
+  }
+  // Blacks
+  const bh = kbH * 0.6;
+  for (let p = chart.lo; p <= chart.hi; p++) {
+    const g = geo[p]; if (!g.black) continue;
+    const fill = keyFill(p, nowMs);
+    ctx.fillStyle = fill || '#14161d'; rr(g.x, kbTop - 1, g.w, bh, 3); ctx.fill();
+    if (!fill) { ctx.fillStyle = '#2b2f3b'; ctx.fillRect(g.x + g.w * 0.2, kbTop + bh - 7, g.w * 0.6, 3); }
+  }
+  // Sparks
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i]; s.life -= dt * 2.2; if (s.life <= 0) { sparks.splice(i, 1); continue; }
+    s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 320 * dt;
+    ctx.globalAlpha = s.life; ctx.fillStyle = s.color; ctx.fillRect(s.x - 1.5, s.y - 1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- HUD & UI ---------- */
+let lastHud = '';
+function updateHud() {
+  let html;
+  if (!chart) html = '';
+  else if (settings.mode === 'watch') html = '<span class="chip"><i>' + T('hud_mode') + '</i>' + T('mode_watch') + '</span>';
+  else {
+    const total = chart.playList.length;
+    html = '<span class="chip"><i>' + T('hud_hits') + '</i>' + score.hits + '/' + total + '</span>' +
+      (settings.wait ? '<span class="chip"><i>' + T('hud_wrong') + '</i>' + score.wrong + '</span>' : '<span class="chip"><i>' + T('hud_missed') + '</i>' + score.miss + '</span>') +
+      '<span class="chip"><i>' + T('hud_streak') + '</i>' + score.streak + '</span>';
+  }
+  if (html !== lastHud) { $('hud').innerHTML = html; lastHud = html; }
+}
+let lastWait = '';
+function updateWaitHint() {
+  const txt = waitingChord ? T('wait_play') + waitingChord.map(n => noteNameOct(n.p)).join(' + ') : '';
+  if (txt !== lastWait) { lastWait = txt; $('waitHint').textContent = txt; $('waitHint').hidden = !txt; }
+}
+function syncSettingsUI() {
+  document.querySelectorAll('#levels button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.l === settings.level)));
+  document.querySelectorAll('#hands button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.h === settings.hands)));
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === settings.mode)));
+  const stems = !!song && song.source === 'stems';
+  document.querySelectorAll('#sounds button').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.s === settings.sound));
+    // no recording available (online site, or files cleaned off the PC): only the piano sound
+    if (b.dataset.s === 'karaoke') b.hidden = !stems || !audioEl;
+    if (b.dataset.s === 'orig') b.hidden = !audioEl;
+  });
+  $('tracksBlock').hidden = !stems;
+  if (stems) {
+    const lead = leadOf();
+    $('leads').innerHTML = '';
+    song.tracks.forEach(tr => {
+      const b = document.createElement('button'); b.dataset.t = tr; b.textContent = trackLabel(tr);
+      b.setAttribute('aria-pressed', String(tr === lead)); $('leads').appendChild(b);
+    });
+    $('leadNote').textContent = (lead === song.lead ? T(song.lead === 'piano' ? 'auto_piano' : 'auto') : '') + T('why_' + lead);
+  }
+  $('speed').value = Math.round(settings.speed * 100); $('speedOut').textContent = Math.round(settings.speed * 100) + ' %';
+  $('optWait').checked = settings.wait; $('optNames').checked = settings.names;
+  const srcLbl = song ? (stems ? trackLabel(leadOf()) : T('src_' + song.source)) : '';
+  $('songSub').textContent = srcLbl + ' · ' + T('lvl' + settings.level) + (settings.mode === 'watch' ? ' · ' + T('mode_watch') : '');
+}
+// Recording to hear: separated songs come from the PC server (karaoke = without the tracks you play)
+function setAudioSrc() {
+  if (!song || !song.job || !audioEl || settings.sound === 'synth') return;
+  const url = settings.sound === 'karaoke'
+    ? 'api/job/' + song.job + '/mix.mp3?without=' + playedTracks().join(',')
+    : 'api/job/' + song.job + '/source.mp3';
+  if (audioEl.dataset.src !== url) { audioEl.pause(); audioEl.dataset.src = url; audioEl.src = url; audioEl.playbackRate = settings.speed; }
+}
+function applyLevel(l) {
+  settings.level = l; settings.speed = LEVEL_SPEED[l]; settings.wait = l < 2;
+  settings.hands = l === 0 ? 'R' : 'B';
+  rebuild();
+}
+function rebuild() {
+  setPlaying(false); buildChart(); setAudioSrc(); resetProgress(-1.2); syncSettingsUI();
+  $('seek').max = chart.duration.toFixed(2); $('tDur').textContent = fmtTime(chart.duration);
+}
+function loadSong(s, audioFile) {
+  if (s.source === 'stems') { // piano-only: older songs may still list guitar, bass…
+    s.tracks = (s.tracks || []).filter(tr => PIANO_TRACKS.includes(tr) && (tr !== 'arr' || s.an));
+    if (!s.tracks.length) s.tracks = ['vocals'];
+  }
+  song = s;
+  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+  if (audioEl) { audioEl.pause(); audioEl = null; }
+  settings.lead = null;
+  if (audioFile || s.job) {
+    if (audioFile) audioUrl = URL.createObjectURL(audioFile);
+    audioEl = audioUrl ? new Audio(audioUrl) : new Audio(); audioEl.preload = 'auto';
+    if ('preservesPitch' in audioEl) audioEl.preservesPitch = true;
+    settings.sound = s.source === 'stems' ? 'karaoke' : 'orig';
+    if (s.job) {
+      // A song from the library whose files were cleaned off the PC: fall back to the piano sound
+      const el = audioEl;
+      el.addEventListener('error', () => { if (audioEl !== el) return; audioEl = null; settings.sound = 'synth'; syncSettingsUI(); });
+    }
+  } else settings.sound = 'synth';
+  $('songTitle').textContent = s.title;
+  $('result').hidden = true;
+  rebuild();
+}
+function togglePlay() { if (!chart) return; if (!playing && t > chart.duration) resetProgress(-1.2); setPlaying(!playing); }
+
+$('bPlay').onclick = togglePlay;
+$('bRestart').onclick = restart;
+$('bSet').onclick = () => { const s = $('settings'); s.hidden = !s.hidden; $('bSet').setAttribute('aria-pressed', String(!s.hidden)); };
+$('levels').onclick = e => { const b = e.target.closest('button'); if (b) applyLevel(+b.dataset.l); };
+$('hands').onclick = e => { const b = e.target.closest('button'); if (b) { settings.hands = b.dataset.h; rebuild(); } };
+$('modes').onclick = e => { const b = e.target.closest('button'); if (b) { settings.mode = b.dataset.m; rebuild(); } };
+$('sounds').onclick = e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  settings.sound = b.dataset.s; if (audioEl) audioEl.pause();
+  setAudioSrc();
+  if (playing && useAudio() && t >= 0) { try { audioEl.currentTime = t; } catch (er) {} audioEl.playbackRate = settings.speed; audioEl.play().catch(() => {}); }
+  syncSettingsUI();
+};
+$('speed').oninput = e => { settings.speed = e.target.value / 100; $('speedOut').textContent = e.target.value + ' %'; if (audioEl) audioEl.playbackRate = settings.speed; };
+$('optWait').onchange = e => { settings.wait = e.target.checked; updateHud(); };
+$('optNames').onchange = e => { settings.names = e.target.checked; };
+document.querySelectorAll('.langs').forEach(g => g.onclick = e => {
+  const b = e.target.closest('button[data-lang]'); if (!b || b.dataset.lang === LANG) return;
+  LANG = b.dataset.lang;
+  try { localStorage.setItem('tf.lang', LANG); } catch (er) {}
+  applyStaticText(); syncSettingsUI();
+  lastHud = ''; updateHud(); lastWait = ''; updateWaitHint();
+  if (chart) $('kbRange').textContent = T('kb_range', { a: noteNameOct(chart.kbBase), b: noteNameOct(chart.kbBase + 16) });
+  if (!$('lib').hidden) renderLib();
+});
+$('leads').onclick = e => { const b = e.target.closest('button'); if (b) { settings.lead = b.dataset.t === song.lead ? null : b.dataset.t; rebuild(); } };
+let seeking = false;
+$('seek').addEventListener('input', e => { seeking = true; const was = playing; setPlaying(false); resetProgress(+e.target.value); $('tCur').textContent = fmtTime(t); seeking = was; });
+$('seek').addEventListener('change', () => { if (seeking) setPlaying(true); seeking = false; });
+$('resAgain').onclick = restart;
+$('resNext').onclick = () => { applyLevel(Math.min(2, settings.level + 1)); restart(); };
+$('resLib').onclick = () => openLib(true);
+$('rotOk').onclick = () => { $('rotateHint').hidden = true; try { sessionStorage.setItem('tf.rot', '1'); } catch (e) {} };
+
+// Touch / mouse on the on-screen keyboard (multi-touch, slide between keys)
+const pointers = new Map();
+function pitchAt(x, y) {
+  if (!chart || y < kbTop - 2) return null;
+  const bh = kbH * 0.6;
+  if (y < kbTop + bh) for (let p = chart.lo; p <= chart.hi; p++) { const g = geo[p]; if (g.black && x >= g.x && x <= g.x + g.w) return p; }
+  for (let p = chart.lo; p <= chart.hi; p++) { const g = geo[p]; if (!g.black && x >= g.x && x < g.x + g.w) return p; }
+  return null;
+}
+const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cv.addEventListener('pointerdown', e => {
+  const [x, y] = local(e); const p = pitchAt(x, y);
+  if (p == null) { if (!$('settings').hidden) $('bSet').click(); return; }
+  e.preventDefault(); cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, p); noteOn(p);
+});
+cv.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const [x, y] = local(e); const p = pitchAt(x, y), old = pointers.get(e.pointerId);
+  if (p !== old) { if (old != null) noteOff(old); if (p != null) noteOn(p); pointers.set(e.pointerId, p); }
+});
+const up = e => { const p = pointers.get(e.pointerId); if (p != null) noteOff(p); pointers.delete(e.pointerId); };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------- Library screen ---------- */
+function openLib(on) {
+  $('lib').hidden = !on;
+  if (on) { setPlaying(false); renderLib(); if (srv) pollQueue(); }
+}
+let libRender = 0, published = null;
+function loadPublished() {
+  if (!published) published = fetch('library.json', { cache: 'no-cache' })
+    .then(r => r.ok ? r.json() : []).then(l => Array.isArray(l) ? l : []).catch(() => []);
+  return published;
+}
+async function renderLib() {
+  const token = ++libRender, list = $('libList');
+  let lib = loadLib(), pcJobs = [];
+  if (srv) {
+    try {
+      const remote = await (await fetch('api/library')).json();
+      const ids = new Set(remote.map(x => x.id));
+      const localOnly = lib.filter(x => !ids.has(x.id));
+      localOnly.forEach(pushToPc); // songs imported earlier on this device join the shared library
+      lib = remote.concat(localOnly).sort((a, b) => (b.added || 0) - (a.added || 0));
+      const usedJobs = new Set(lib.map(x => x.job).filter(Boolean)), usedTitles = new Set(lib.map(x => x.title));
+      const seen = new Set();
+      pcJobs = (await (await fetch('api/jobs')).json())
+        .filter(j => !usedJobs.has(j.id) && !usedTitles.has(j.title) && !seen.has(j.title) && seen.add(j.title));
+    } catch (e) {}
+  } else {
+    // Online site: the songs published from the PC, next to the ones imported on this device
+    const pub = await loadPublished(), ids = new Set(lib.map(x => x.id));
+    lib = lib.concat(pub.filter(x => !ids.has(x.id)).map(x => ({ ...x, pub: true })));
+  }
+  if (token !== libRender) return;
+  list.innerHTML = '';
+  if (!lib.length && !pcJobs.length) { list.innerHTML = '<div class="empty">' + T(srv ? 'lib_empty_pc' : 'lib_empty_local') + '</div>'; return; }
+  pcJobs.forEach(j => {
+    const el = document.createElement('div'); el.className = 'item';
+    el.innerHTML = '<div class="meta"><b></b><span>' + T('pc_meta') + '</span></div><span class="tag">' + T('tag_pc') + '</span><button class="btn" data-a="go">' + T('analyse') + '</button>';
+    el.querySelector('b').textContent = j.title;
+    el.querySelector('[data-a=go]').onclick = () => { if (!busy) { ensureAC(); runServerJob(() => fetch('api/job/' + j.id), j.title); } };
+    list.appendChild(el);
+  });
+  lib.forEach(x => {
+    const notes = x.notes, dur = notes.length ? Math.max(...notes.map(a => (a[0] + a[1]) / 1000)) : 0;
+    const el = document.createElement('div'); el.className = 'item';
+    el.innerHTML = '<div class="meta"><b></b><span></span></div><span class="tag"></span><button class="btn" data-a="del" title="' + T('del') + '"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button><button class="btn" data-a="play">' + T('play') + '</button>';
+    el.querySelector('b').textContent = x.title;
+    el.querySelector('.meta span').textContent = fmtTime(dur) + ' · ' + notes.length + ' ' + T('notes_unit');
+    el.querySelector('.tag').textContent = x.source === 'midi' ? 'MIDI' : x.source === 'stems' ? T(x.an ? 'tag_piano' : 'tag_old') : T('tag_audio');
+    if (srv && x.source === 'stems' && !x.an && x.job) {
+      // Songs analysed before the piano arrangement existed: rebuild them from the files kept on the PC
+      const up = document.createElement('button'); up.className = 'btn'; up.textContent = T('update');
+      up.onclick = () => { if (!busy) { ensureAC(); runServerJob(() => fetch('api/job/' + x.job), x.title, x.id); } };
+      el.insertBefore(up, el.querySelector('[data-a=del]'));
+    }
+    el.querySelector('[data-a=play]').onclick = () => {
+      loadSong({ id: x.id, title: x.title, source: x.source, job: srv ? x.job : undefined, lead: x.lead, tracks: x.tracks || [], an: x.an, notes: unpack(x.notes) });
+      openLib(false);
+    };
+    const del = el.querySelector('[data-a=del]');
+    if (x.pub) del.hidden = true; // published songs are managed from the PC
+    del.onclick = () => {
+      if (del.dataset.armed) {
+        saveLib(loadLib().filter(y => y.id !== x.id));
+        (srv ? fetch('api/library/' + encodeURIComponent(x.id), { method: 'DELETE' }).catch(() => {}) : Promise.resolve()).then(renderLib);
+        return;
+      }
+      del.dataset.armed = '1'; del.textContent = T('del_confirm'); del.style.color = C.bad;
+      setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg>'; del.style.color = ''; } }, 3000);
+    };
+    list.appendChild(el);
+  });
+}
+$('bLib').onclick = () => openLib(true);
+$('bLibClose').onclick = () => openLib(false);
+$('bDemo').onclick = () => { loadSong(demoSong()); openLib(false); };
+
+function job(title, msg, frac, err) {
+  $('job').hidden = false; $('job').classList.toggle('err', !!err);
+  $('jobTitle').textContent = title; $('jobMsg').textContent = msg || '';
+  $('jobBar').style.width = Math.round((frac || 0) * 100) + '%';
+}
+let busy = false, srv = null;
+
+/* ---------- PC server: instrument separation (Demucs), then one transcription per track ---------- */
+const STEM_ORDER = ['vocals', 'piano', 'guitar', 'bass', 'other'];
+const PIANO_MIN_VEL = 30 / 127; // force de frappe minimale gardée dans la partition piano
+function rmsOf(x) { let s = 0, n = 0; for (let i = 0; i < x.length; i += 4) { s += x[i] * x[i]; n++; } return Math.sqrt(s / Math.max(1, n)); }
+// A sung line is one note at a time: keep the strongest note, merge vibrato fragments of the same pitch
+function monophonic(notes) {
+  const out = [];
+  for (const n of notes.filter(n => n.d >= 0.08).sort((a, b) => a.t - b.t)) {
+    const last = out[out.length - 1];
+    if (last && n.t < last.t + last.d - 0.03) {
+      if (n.v * Math.min(n.d, 1) <= last.v * Math.min(last.d, 1)) continue;
+      last.d = n.t - last.t;
+      if (last.d < 0.08) out.pop();
+    }
+    const prev = out[out.length - 1];
+    if (prev && prev.p === n.p && n.t - (prev.t + prev.d) < 0.07) { prev.d = n.t + n.d - prev.t; continue; }
+    out.push({ ...n });
+  }
+  return out;
+}
+async function pollJob(id, title) {
+  for (;;) {
+    const j = await (await fetch('api/job/' + id)).json();
+    if (j.status === 'error' || j.error) throw new Error(trSrv(j.error) || T('st_failed'));
+    if (j.status === 'done') return j;
+    if (j.status === 'download') job(j.title !== 'Morceau' ? j.title : title, T('st_download'), 0.04);
+    else if (j.status === 'arrange') job(j.title, T('st_arrange') + ' ' + Math.round(j.progress * 100) + ' %', 0.4 + j.progress * 0.5);
+    else job(j.title, T('st_separate') + ' ' + Math.round(j.progress * 100) + ' %', 0.05 + j.progress * 0.35);
+    await new Promise(r => setTimeout(r, 1000));
+  }
+}
+async function transcribeBlob(blob, onProg) {
+  const { mono, duration } = await decodeToMono(blob);
+  const rms = rmsOf(mono);
+  if (rms < 0.004) return { notes: [], rms, duration };
+  const raw = await runBasicPitch(mono, onProg);
+  return { notes: notesFromModel(raw), rms, duration };
+}
+async function songFromJob(j, keepId) {
+  const id = keepId || 's' + Date.now().toString(36), title = j.title;
+  const names = STEM_ORDER.filter(s => j.stems.includes(s));
+  if (names.length) return pianoSongFromJob(j, id);
+  { // server without separation: analyse the full mix
+    job(title, T('st_listen'), 0.4);
+    const blob = await (await fetch('api/job/' + j.id + '/source.mp3')).blob();
+    const { notes } = await transcribeBlob(blob, f => job(title, T('st_listen') + ' ' + Math.round(f * 100) + ' %', 0.4 + f * 0.55));
+    if (!notes.length) throw new Error(T('st_no_notes'));
+    return { id, title, source: 'audio', job: j.id, notes };
+  }
+}
+// Separated song → piano only: arrangement (melody + chords), the song's own piano part, the sung melody
+async function pianoSongFromJob(j, id) {
+  const title = j.title;
+  if (!j.analysis) {
+    job(title, T('st_arrange'), 0.45);
+    await fetch('api/job/' + j.id + '/arrange', { method: 'POST' });
+    await new Promise(r => setTimeout(r, 800));
+    j = await pollJob(j.id, title);
+  }
+  job(title, T('st_writing'), 0.92);
+  if (j.analysis) { // the PC writes the song (same calculation as for playlists) and adds it to the library
+    const r = await fetch('api/job/' + j.id + '/song?id=' + encodeURIComponent(id), { method: 'POST' });
+    const s = await r.json();
+    if (!r.ok) throw new Error(trSrv(s.error) || T('st_failed'));
+    return { ...s, notes: unpack(s.notes) };
+  }
+  const an = j.analysis ? await (await fetch('api/job/' + j.id + '/analysis.json')).json() : null;
+  const notes = [], tracks = [];
+  let pianoCount = 0;
+  if (j.pianoNotes) {
+    // Partition faite sur le PC par un modèle spécial piano : on écarte les frappes très faibles,
+    // qui sont surtout d'autres instruments ayant débordé dans la piste piano.
+    const r = await (await fetch('api/job/' + j.id + '/piano.json')).json();
+    const pn = r.notes.filter(n => n.v >= PIANO_MIN_VEL).map(n => ({ ...n, h: n.p >= 60 ? 'R' : 'L', tr: 'piano' }));
+    pianoCount = pn.length; notes.push(...pn);
+  }
+  let voc = an ? an.melody.map(n => ({ ...n, h: 'R', tr: 'vocals' })) : [];
+  if (!an && j.stems.includes('vocals')) { // analysis unavailable: detect the sung notes here
+    const blob = await (await fetch('api/job/' + j.id + '/vocals.mp3')).blob();
+    voc = monophonic((await transcribeBlob(blob, f => job(title, T('st_voice') + ' ' + Math.round(f * 100) + ' %', 0.5 + f * 0.4))).notes).map(n => ({ ...n, h: 'R', tr: 'vocals' }));
+  }
+  notes.push(...voc);
+  if (an && an.melody.length >= 20 && an.chords.length) tracks.push('arr');
+  if (pianoCount) tracks.push('piano');
+  if (voc.length) tracks.push('vocals');
+  if (!tracks.length) throw new Error(T('st_no_notes_song'));
+  // A real piano part, loud enough next to the other instruments, is played as is; otherwise the arrangement
+  const lv = (an && an.levels) || {};
+  const loud = Math.max(0, ...['vocals', 'piano', 'guitar', 'other'].map(s => lv[s] || 0));
+  const hasPiano = pianoCount >= 40 && (an && an.levels ? (lv.piano || 0) >= 0.3 * loud : !an);
+  const lead = hasPiano ? 'piano' : tracks[0];
+  return { id, title, source: 'stems', job: j.id, lead, tracks, an, notes };
+}
+async function runServerJob(start, title, keepId) {
+  busy = true;
+  try {
+    job(title, T('st_send'), 0.02);
+    const r = await start();
+    const j0 = await r.json();
+    if (!r.ok) throw new Error(trSrv(j0.error) || T('st_refused'));
+    const j = await pollJob(j0.id, title);
+    const s = await songFromJob(j, keepId);
+    storeSong(s); $('job').hidden = true; loadSong(s); openLib(false);
+  } catch (e) {
+    console.error(e);
+    const offline = e instanceof TypeError && /fetch|network/i.test(e.message);
+    job(title, offline ? T('st_offline') : trSrv(e && e.message) || T('st_failed'), 1, true);
+  } finally { busy = false; $('file').value = ''; }
+}
+
+async function importFile(file) {
+  if (!file || busy) return;
+  const title = file.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim() || T('untitled');
+  const isMidi = /\.midi?$/i.test(file.name) || /midi/.test(file.type);
+  if (!isMidi && srv && srv.separation) {
+    ensureAC();
+    return runServerJob(() => fetch('api/upload?name=' + encodeURIComponent(file.name), { method: 'POST', body: file }), title);
+  }
+  busy = true;
+  const id = 's' + Date.now().toString(36);
+  try {
+    if (isMidi) {
+      job(title, T('st_midi'), 0.5);
+      const notes = parseMidi(await file.arrayBuffer());
+      const s = { id, title, source: 'midi', notes };
+      storeSong(s); $('job').hidden = true; loadSong(s); openLib(false);
+    } else {
+      job(title, T('st_read'), 0.02);
+      const { mono, duration } = await decodeToMono(file);
+      job(title, T('st_engine'), 0.05);
+      const raw = await runBasicPitch(mono, f => job(title, T('st_listen_dur', { p: Math.round(f * 100), d: fmtTime(duration) }), 0.05 + f * 0.85));
+      job(title, T('st_writing'), 0.93);
+      await new Promise(r => setTimeout(r, 30));
+      const notes = notesFromModel(raw);
+      if (!notes.length) throw new Error(T('st_no_notes_file'));
+      const s = { id, title, source: 'audio', notes };
+      storeSong(s); $('job').hidden = true; loadSong(s, file); openLib(false);
+    }
+  } catch (e) {
+    console.error(e);
+    const offline = e instanceof TypeError && /fetch|network/i.test(e.message);
+    job(title, offline ? T('st_offline') : trSrv(e && e.message) || T('st_failed'), 1, true);
+  } finally { busy = false; $('file').value = ''; }
+}
+$('file').onchange = e => importFile(e.target.files[0]);
+
+// Online site (GitHub Pages): the PC writes the « site » folder, GitHub Desktop sends it
+$('bPublish').onclick = async () => {
+  $('bPublish').disabled = true; $('pubMsg').textContent = ' ' + T('pub_busy');
+  try {
+    const r = await fetch('api/publish', { method: 'POST' });
+    const p = await r.json();
+    if (!r.ok) throw new Error(p.error);
+    $('pubMsg').textContent = ' ' + T('pub_done', { n: p.songs });
+  } catch (e) { $('pubMsg').textContent = ' ' + (trSrv(e.message) || T('pub_fail')); }
+  $('bPublish').disabled = false;
+};
+// Playlist queue, prepared on the PC: refreshed every few seconds while songs are waiting
+let queueTimer = null, queueDone = -1;
+async function pollQueue() {
+  clearTimeout(queueTimer);
+  if (!srv) return;
+  let q;
+  try { q = await (await fetch('api/queue')).json(); } catch (e) { return; }
+  $('queueSect').hidden = !q.length;
+  const list = $('queueList');
+  list.innerHTML = '';
+  for (const it of q) {
+    const el = document.createElement('div'); el.className = 'item';
+    el.innerHTML = '<div class="meta"><b></b><span></span></div><span class="tag"></span>';
+    el.querySelector('b').textContent = it.label;
+    el.querySelector('.meta span').textContent = it.status === 'working'
+      ? T({ download: 'st_download', separate: 'st_separate', arrange: 'st_arrange' }[it.step] || 'q_working') + (it.progress ? ' ' + Math.round(it.progress * 100) + ' %' : '')
+      : it.status === 'error' ? trSrv(it.error || '') : '';
+    el.querySelector('.tag').textContent = T('q_' + it.status);
+    list.appendChild(el);
+  }
+  const done = q.filter(x => x.status === 'done').length;
+  if (done !== queueDone) { if (queueDone >= 0 && !$('lib').hidden) renderLib(); queueDone = done; }
+  if (q.some(x => x.status === 'waiting' || x.status === 'working')) queueTimer = setTimeout(pollQueue, 3000);
+}
+$('bQueueClear').onclick = async () => { await fetch('api/queue', { method: 'DELETE' }).catch(() => {}); pollQueue(); };
+// Offline use and « add to home screen » on the published site
+if (location.protocol === 'https:' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+// Links (YouTube, direct MP3/MP4): only when the local server (server.js) is running
+fetch('api/ping').then(r => r.ok ? r.json() : null).then(j => {
+  if (!j || !j.ok) return;
+  srv = j;
+  $('urlForm').hidden = false; $('linkTip').hidden = true; $('pubSect').hidden = false;
+  pollQueue();
+  if (!$('lib').hidden) renderLib();
+}).catch(() => {});
+$('urlForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (busy) return;
+  const link = $('urlIn').value.trim();
+  ensureAC();
+  $('urlGo').disabled = true;
+  if (/\/(playlist|album)\/|[?&]list=/.test(link)) { // a whole playlist or album: prepared one by one on the PC
+    try {
+      const r = await fetch('api/playlist?url=' + encodeURIComponent(link), { method: 'POST' });
+      const p = await r.json();
+      if (!r.ok) throw new Error(trSrv(p.error));
+      job(p.name, T('pl_added', { n: p.added }) + (p.skipped ? ' ' + T('pl_skipped', { k: p.skipped }) : ''), 1);
+      $('urlIn').value = '';
+      pollQueue();
+    } catch (e) { job(T('link'), e.message || T('st_failed'), 1, true); }
+    $('urlGo').disabled = false;
+    return;
+  }
+  await runServerJob(() => fetch('api/link?url=' + encodeURIComponent(link), { method: 'POST' }), T('link'));
+  if ($('lib').hidden) $('urlIn').value = '';
+  $('urlGo').disabled = false;
+});
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => importFile(e.dataTransfer.files[0]));
+
+/* ---------- Main loop ---------- */
+let last = performance.now(), lastScrub = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  tick(dt);
+  draw(now, dt);
+  updateWaitHint();
+  if (now - lastScrub > 120 && chart) {
+    lastScrub = now;
+    const c = song && song.an && song.source === 'stems' && leadOf() === 'arr' ? chordAt(song.an, Math.max(0, t)) : null;
+    const txt = c ? T('chord') + chordLabel(c) : '';
+    if ($('chordTag').textContent !== txt) { $('chordTag').textContent = txt; $('chordTag').hidden = !txt; } if (document.activeElement !== $('seek')) $('seek').value = Math.max(0, t).toFixed(2); $('tCur').textContent = fmtTime(t); }
+  requestAnimationFrame(frame);
+}
+new ResizeObserver(resize).observe($('stage'));
+loadSong(demoSong());
+resize();
+requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
