@@ -1,6 +1,6 @@
 // Touches Filantes — fonctionnement hors connexion du site publié.
 // Réseau d'abord (pour voir les morceaux ajoutés), copie locale si le téléphone est hors ligne.
-const CACHE = 'touches-filantes-mvdmoyum';
+const CACHE = 'touches-filantes-mvgx8wyt';
 const SHELL = ['./', 'index.html', 'library.json', 'manifest.webmanifest', 'icon-192.png', 'model/model.json', 'model/weights.wasm'];
 
 self.addEventListener('install', e => {
